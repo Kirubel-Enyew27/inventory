@@ -7,6 +7,8 @@ import (
 
 	"inventory/internal/model"
 	"inventory/internal/repository"
+
+	"gorm.io/gorm"
 )
 
 // ProductService contains business logic for products.
@@ -20,9 +22,9 @@ func NewProductService(r *repository.ProductRepository) *ProductService {
 }
 
 var (
-	ErrNotFound       = errors.New("product not found")
-	ErrInvalidPrice   = errors.New("price must be greater than 0")
-	ErrInvalidQuantity = errors.New("quantity cannot be negative")
+	ErrNotFound          = errors.New("product not found")
+	ErrInvalidPrice      = errors.New("price must be greater than 0")
+	ErrInvalidQuantity   = errors.New("quantity cannot be negative")
 	ErrInsufficientStock = errors.New("insufficient stock")
 )
 
@@ -88,6 +90,9 @@ func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) er
 // DeleteProduct removes a product by ID.
 func (s *ProductService) DeleteProduct(ctx context.Context, id uint) error {
 	if err := s.repo.DeleteProduct(ctx, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("delete product: %w", err)
 	}
 	return nil
@@ -113,4 +118,3 @@ func (s *ProductService) AdjustStock(ctx context.Context, id uint, delta int) er
 	}
 	return nil
 }
-

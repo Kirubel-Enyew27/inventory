@@ -58,8 +58,12 @@ func (r *ProductRepository) UpdateProduct(ctx context.Context, p *model.Product)
 
 // DeleteProduct removes a product by ID.
 func (r *ProductRepository) DeleteProduct(ctx context.Context, id uint) error {
-	if err := r.db.WithContext(ctx).Delete(&model.Product{}, id).Error; err != nil {
-		return fmt.Errorf("delete product: %w", err)
+	res := r.db.WithContext(ctx).Delete(&model.Product{}, id)
+	if res.Error != nil {
+		return fmt.Errorf("delete product: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }

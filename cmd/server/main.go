@@ -1,14 +1,17 @@
 package main
 
 import (
-    "fmt"
-    "log"
-    "net/http"
+	"fmt"
+	"log"
+	"net/http"
 
-    "inventory/internal/config"
-    "inventory/internal/db"
+	"inventory/internal/config"
+	"inventory/internal/db"
+	"inventory/internal/handler"
+	"inventory/internal/repository"
+	"inventory/internal/service"
 
-    "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -21,12 +24,16 @@ func main() {
     if err != nil {
         log.Fatalf("failed to connect to db: %v", err)
     }
-    _ = gormDB
+    // repository / service / handler wiring
+    repo := repository.NewProductRepository(gormDB)
+    svc := service.NewProductService(repo)
+    h := handler.NewProductHandler(svc)
 
     r := gin.Default()
     r.GET("/health", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{"status": "ok"})
     })
+    h.RegisterRoutes(r)
 
     port := config.Get("PORT", "8080")
     addr := fmt.Sprintf(":%s", port)
