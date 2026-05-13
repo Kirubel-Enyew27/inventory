@@ -8,6 +8,7 @@ import (
 	"inventory/internal/config"
 	"inventory/internal/db"
 	"inventory/internal/handler"
+	"inventory/internal/middleware"
 	"inventory/internal/repository"
 	"inventory/internal/service"
 
@@ -30,6 +31,8 @@ func main() {
     h := handler.NewProductHandler(svc)
 
     r := gin.Default()
+    // global middleware
+    r.Use(middleware.RequestLogger(), middleware.Recovery())
     r.GET("/health", func(c *gin.Context) {
         c.JSON(http.StatusOK, gin.H{"status": "ok"})
     })

@@ -1,0 +1,22 @@
+package middleware
+
+import (
+	"log"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+// RequestLogger logs basic request info: method, path, status, latency, client IP.
+func RequestLogger() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        start := time.Now()
+        c.Next()
+        latency := time.Since(start)
+        status := c.Writer.Status()
+        clientIP := c.ClientIP()
+        method := c.Request.Method
+        path := c.Request.URL.Path
+        log.Printf("%s %s - %d - %s - %s", method, path, status, latency.String(), clientIP)
+    }
+}
