@@ -60,7 +60,31 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 func (h *ProductHandler) ListProducts(c *gin.Context) {
     category := c.Query("category")
-    products, err := h.svc.GetAllProducts(c.Request.Context(), category)
+    lowStock := false
+    if c.Query("low_stock") == "true" {
+        lowStock = true
+    }
+
+    // pagination
+    limit := 20
+    offset := 0
+    if l := c.Query("limit"); l != "" {
+        if v, err := strconv.Atoi(l); err == nil {
+            if v > 0 {
+                if v > 100 {
+                    v = 100
+                }
+                limit = v
+            }
+        }
+    }
+    if o := c.Query("offset"); o != "" {
+        if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+            offset = v
+        }
+    }
+
+    products, err := h.svc.GetAllProducts(c.Request.Context(), category, lowStock, limit, offset)
     if err != nil {
         c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
         return

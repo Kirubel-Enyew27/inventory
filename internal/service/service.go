@@ -54,23 +54,19 @@ func (s *ProductService) GetProductByID(ctx context.Context, id uint) (*model.Pr
 	return p, nil
 }
 
-// GetAllProducts returns products, filtered by category if provided.
-func (s *ProductService) GetAllProducts(ctx context.Context, category string) ([]model.Product, error) {
-	products, err := s.repo.GetAllProducts(ctx)
+// GetAllProducts returns products with optional category filter, low-stock flag, and pagination.
+func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, limit, offset int) ([]model.Product, error) {
+	opts := repository.ListOptions{
+		Category: category,
+		LowStock: lowStock,
+		Limit:    limit,
+		Offset:   offset,
+	}
+	products, err := s.repo.GetAllProducts(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("list products: %w", err)
 	}
-	if category == "" {
-		return products, nil
-	}
-	// Simple in-memory filter for category. Can be pushed to repo/DB later.
-	var out []model.Product
-	for _, p := range products {
-		if p.Category == category {
-			out = append(out, p)
-		}
-	}
-	return out, nil
+	return products, nil
 }
 
 // UpdateProduct validates and updates a product.
