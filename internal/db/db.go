@@ -1,0 +1,21 @@
+package db
+
+import (
+	"inventory/internal/model"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
+
+func Connect(dsn string) (*gorm.DB, error) {
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	if err := gormDB.AutoMigrate(&model.Product{}); err != nil {
+		return nil, err
+	}
+
+	return gormDB, nil
+}
