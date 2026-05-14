@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"inventory/internal/config"
 	"inventory/internal/db"
@@ -10,6 +11,9 @@ import (
 	"inventory/internal/service"
 	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,17 +34,45 @@ func main() {
 	svc := service.NewProductService(repo)
 	h := handler.NewProductHandler(svc)
 
-	r := gin.Default()
+	r := gin.New()
 	r.Use(middleware.RequestLogger(), middleware.Recovery())
 	r.GET("/health", func(c *gin.Context) {
+		if err := db.Ping(c.Request.Context(), gormDB); err != nil {
+			handler.JSONError(c, http.StatusServiceUnavailable, "database unavailable")
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"Status": "ok"})
 	})
 	h.RegisterRoutes(r)
 
 	port := config.Get("PORT", "8080")
 	addr := fmt.Sprintf(":%s", port)
+	server := &http.Server{
+		Addr: addr,
+		Handler: r,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout: 10 *  time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout: 60 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	go func () {
 	log.Printf("starting server on %s", addr)
-	if err := r.Run(addr); err != nil {
+	if err := server.ListenAndServe(); err != nil  {
 		log.Fatalf("server exited: %v", err)
 	}
+	}()
+
+	<-ctx.Done()
+	stop()
+
+	shutDownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutDownCtx); err != nil {
+		log.Fatalf("server shutdown failed: %v", err)
+	} 
+	log.Println("server stopped")
 }

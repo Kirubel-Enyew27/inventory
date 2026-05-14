@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,17 +28,5 @@ func AsValidationErrors(err error, out *validator.ValidationErrors) bool {
 	if err == nil {
 		return false
 	}
-	if ve, ok := err.(validator.ValidationErrors); ok {
-		*out = ve
-		return true
-	}
-	if ve, ok := err.(interface{ Unwrap() error }); ok {
-		if inner := ve.Unwrap(); inner != nil {
-			if v2, ok2 := inner.(validator.ValidationErrors); ok2 {
-				*out = v2
-				return true
-			}
-		}
-	}
-	return false
+	return errors.As(err, out)
 }

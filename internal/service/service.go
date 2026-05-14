@@ -49,19 +49,23 @@ func (s *ProductService) GetProductByID(ctx context.Context, id uint) (*model.Pr
 	return p, nil
 }
 
-func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, limit, offset int) ([]model.Product, error) {
+func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, search string, limit, offset int) ([]model.Product, int64, error) {
 	opts := repository.ListOptions{
 		Category: category,
 		LowStock: lowStock,
+		Search:   search,
 		Limit:    limit,
 		Offset:   offset,
 	}
 	products, err := s.repo.GetAllProducts(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("list products: %w", err)
+		return nil, 0, fmt.Errorf("list products: %w", err)
 	}
-
-	return products, nil
+	total, err := s.repo.CountProducts(ctx, opts)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list products: %w", err)
+	}
+	return products, total, nil
 }
 
 func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) error {
@@ -87,21 +91,16 @@ func (s *ProductService) DeleteProduct(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (s *ProductService) AdjustStock(ctx context.Context, id uint, delta int) error {
-	p, err := s.repo.GetProductByID(ctx, id)
+func (s *ProductService) AdjustStock(ctx context.Context, id uint, delta int) (*model.Product, error) {
+	p, err := s.repo.AdjustStock(ctx, id, delta)
 	if err != nil {
-		return fmt.Errorf("adjust stock: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrNotFound
+		}
+		if errors.Is(err, repository.ErrInsufficientStock) {
+			return nil, ErrInsufficientStock
+		}
+		return nil, fmt.Errorf("adjust stock: %w", err)
 	}
-	if p == nil {
-		return ErrNotFound
-	}
-	newQty := p.Quantity + delta
-	if newQty < 0 {
-		return ErrInsufficientStock
-	}
-	p.Quantity = newQty
-	if err := s.repo.UpdateProduct(ctx, p); err != nil {
-		return fmt.Errorf("adjust stock: %w", err)
-	}
-	return nil
+	return p, nil
 }
