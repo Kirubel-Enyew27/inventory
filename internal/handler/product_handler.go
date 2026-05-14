@@ -19,6 +19,7 @@ func NewProductHandler(svc *service.ProductService) *ProductHandler {
 }
 
 type createProductReq struct {
+	SKU         string  `json:"sku" binding:"required"`
 	Name        string  `json:"name" binding:"required"`
 	Description string  `json:"description"`
 	Category    string  `json:"category"`
@@ -56,6 +57,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	p := &model.Product{
+		SKU:         req.SKU,
 		Name:        req.Name,
 		Description: req.Description,
 		Category:    req.Category,
@@ -64,8 +66,13 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateProduct(c.Request.Context(), p); err != nil {
-		if errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
+		if errors.Is(err, service.ErrInvalidSKU) || errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
 			JSONError(c, http.StatusBadRequest, err)
+			return
+		}
+		if errors.Is(err, service.ErrDuplicateSKU) {
+			JSONError(c, http.StatusConflict, service.ErrDuplicateSKU)
+			return
 		}
 		JSONError(c, http.StatusInternalServerError, err)
 		return
@@ -76,6 +83,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 func (h *ProductHandler) ListProducts(c *gin.Context) {
 	category := c.Query("category")
 	search := c.Query("q")
+	sku := c.Query("sku")
 	lowStock, err := parseBoolQuery(c, "low_stock", false)
 	if err != nil {
 		JSONError(c, http.StatusBadRequest, err)
@@ -93,7 +101,7 @@ func (h *ProductHandler) ListProducts(c *gin.Context) {
 		return
 	}
 
-	products, total, err := h.svc.GetAllProducts(c.Request.Context(), category, lowStock, search, limit, offset)
+	products, total, err := h.svc.GetAllProducts(c.Request.Context(), category, lowStock, search, sku, limit, offset)
 	if err != nil {
 		JSONError(c, http.StatusInternalServerError, err)
 		return
@@ -149,17 +157,23 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	}
 
 	existing.Name = req.Name
+	existing.SKU = req.SKU
 	existing.Description = req.Description
 	existing.Category = req.Category
 	existing.Quantity = req.Quantity
 	existing.Price = req.Price
 
 	if err := h.svc.UpdateProduct(c.Request.Context(), existing); err != nil {
-		if errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
+		if errors.Is(err, service.ErrInvalidSKU) || errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
 			JSONError(c, http.StatusBadRequest, err)
 			return
 		}
+		if errors.Is(err, service.ErrDuplicateSKU) {
+			JSONError(c, http.StatusConflict, service.ErrDuplicateSKU)
+			return
+		}
 		JSONError(c, http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, existing)
 }
