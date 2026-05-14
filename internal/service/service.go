@@ -99,7 +99,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) er
 	}
 	existing, err := s.repo.GetProductBySKU(ctx, p.SKU)
 	if err != nil {
-		return fmt.Errorf("update product: %w", ErrDuplicateSKU)
+		return fmt.Errorf("update product: %w", err)
 	}
 	if existing != nil && existing.ID != p.ID {
 		return fmt.Errorf("update product: %w", ErrDuplicateSKU)

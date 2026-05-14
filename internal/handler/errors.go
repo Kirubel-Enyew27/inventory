@@ -3,7 +3,7 @@ package handler
 import "github.com/gin-gonic/gin"
 
 type APIError struct {
-	Error string `json:"error"`
+	Error   string   `json:"error"`
 	Details []string `json:"details,omitempty"`
 }
 

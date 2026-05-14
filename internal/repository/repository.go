@@ -86,9 +86,12 @@ func (r *ProductRepository) CountProducts(ctx context.Context, opts ListOptions)
 	if opts.Category != "" {
 		q = q.Where("category = ?", opts.Category)
 	}
+	if opts.LowStock {
+		q = q.Where("quantity <= ?", LowStockThreshold)
+	}
 	if opts.Search != "" {
 		pattern := "%" + opts.Search + "%"
-		q = q.Where("sku ILIKIE ? OR name ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
+		q = q.Where("sku ILIKE ? OR name ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
 	}
 	if opts.SKU != "" {
 		q = q.Where("sku = ?", opts.SKU)
@@ -102,7 +105,7 @@ func (r *ProductRepository) CountProducts(ctx context.Context, opts ListOptions)
 
 func (r *ProductRepository) GetProductBySKU(ctx context.Context, sku string) (*model.Product, error) {
 	var p model.Product
-	if err := r.db.WithContext(ctx).Where("sku=?", sku).First(&p).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("sku = ?", sku).First(&p).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

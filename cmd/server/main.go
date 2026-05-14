@@ -48,22 +48,22 @@ func main() {
 	port := config.Get("PORT", "8080")
 	addr := fmt.Sprintf(":%s", port)
 	server := &http.Server{
-		Addr: addr,
-		Handler: r,
+		Addr:              addr,
+		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 10 *  time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout: 60 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	go func () {
-	log.Printf("starting server on %s", addr)
-	if err := server.ListenAndServe(); err != nil  {
-		log.Fatalf("server exited: %v", err)
-	}
+	go func() {
+		log.Printf("starting server on %s", addr)
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatalf("server exited: %v", err)
+		}
 	}()
 
 	<-ctx.Done()
@@ -73,6 +73,6 @@ func main() {
 	defer cancel()
 	if err := server.Shutdown(shutDownCtx); err != nil {
 		log.Fatalf("server shutdown failed: %v", err)
-	} 
+	}
 	log.Println("server stopped")
 }
