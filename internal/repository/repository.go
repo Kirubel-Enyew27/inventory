@@ -12,6 +12,15 @@ type ProductRepository struct {
 	db *gorm.DB
 }
 
+type ListOptions struct {
+	Category string
+	LowStock bool
+	Limit    int
+	Offset   int
+}
+
+const LowStockThreshold = 5
+
 func NewProductRepository(db *gorm.DB) *ProductRepository {
 	return &ProductRepository{db: db}
 }
@@ -34,9 +43,23 @@ func (r *ProductRepository) GetProductByID(ctx context.Context, id uint) (*model
 	return &p, nil
 }
 
-func (r *ProductRepository) GetAllProducts(ctx context.Context) ([]model.Product, error) {
+func (r *ProductRepository) GetAllProducts(ctx context.Context, opts ListOptions) ([]model.Product, error) {
 	var products []model.Product
-	if err := r.db.WithContext(ctx).Find(&products).Error; err != nil {
+	q := r.db.WithContext(ctx).Model(&model.Product{})
+
+	if opts.Category != "" {
+		q = q.Where("category = ?", opts.Category)
+	}
+	if opts.LowStock {
+		q = q.Where("quantity <= ?", LowStockThreshold)
+	}
+	if opts.Limit > 0 {
+		q = q.Limit(opts.Limit)
+	}
+	if opts.Offset > 0 {
+		q = q.Offset(opts.Offset)
+	}
+	if err :=q.Order("id DESC").Find(&products).Error; err != nil {
 		return nil, fmt.Errorf("get all products: %w", err)
 	}
 	return products, nil

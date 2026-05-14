@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"inventory/internal/model"
 	"inventory/internal/service"
 	"net/http"
@@ -37,8 +38,8 @@ func (h *ProductHandler) RegisterRoutes(r gin.IRouter) {
 
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var req createProductReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if err := BindJSON(c, &req); err != nil {
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 
@@ -51,7 +52,10 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	}
 
 	if err := h.svc.CreateProduct(c.Request.Context(), p); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+		if errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
+			JSONError(c, http.StatusBadRequest, err)
+		}
+		JSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusCreated, p)
@@ -59,9 +63,32 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 func (h *ProductHandler) ListProducts(c *gin.Context) {
 	category := c.Query("category")
-	products, err := h.svc.GetAllProducts(c.Request.Context(), category)
+	lowStock := false
+	if c.Query("low_stock") == "true" {
+		lowStock = true
+	}
+
+	limit := 20
+	offset := 0
+	if l := c.Query("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil {
+			if v > 0 {
+				if v > 100 {
+					v = 100
+				}
+				limit = v
+			}
+		}
+	}
+	if o := c.Query("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	products, err := h.svc.GetAllProducts(c.Request.Context(), category, lowStock, limit, offset)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		JSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, products)
@@ -75,11 +102,11 @@ func (h *ProductHandler) GetProduct(c *gin.Context) {
 	}
 	p, err := h.svc.GetProductByID(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == service.ErrNotFound {
-			c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+		if errors.Is(err, service.ErrNotFound) {
+			JSONError(c, http.StatusNotFound, service.ErrNotFound)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		JSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, p)
@@ -94,17 +121,17 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 
 	existing, err := h.svc.GetProductByID(c.Request.Context(), uint(id))
 	if err != nil {
-		if err == service.ErrNotFound {
-			c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+		if errors.Is(err, service.ErrNotFound) {
+			JSONError(c, http.StatusNotFound, service.ErrNotFound)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		JSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 
 	var req updateProductReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
+	if err := BindJSON(c, &req); err != nil {
+		JSONError(c, http.StatusBadRequest, err)
 		return
 	}
 
@@ -115,8 +142,11 @@ func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	existing.Price = req.Price
 
 	if err := h.svc.UpdateProduct(c.Request.Context(), existing); err != nil {
-		c.JSON(http.StatusBadRequest, errorResponse{Error: err.Error()})
-		return
+		if errors.Is(err, service.ErrInvalidPrice) || errors.Is(err, service.ErrInvalidQuantity) {
+			JSONError(c, http.StatusBadRequest, err)
+			return
+		}
+		JSONError(c, http.StatusInternalServerError, err)
 	}
 	c.JSON(http.StatusOK, existing)
 }
@@ -128,11 +158,11 @@ func (h *ProductHandler) DeleteProduct(c *gin.Context) {
 		return
 	}
 	if err := h.svc.DeleteProduct(c.Request.Context(), uint(id)); err != nil {
-		if err == service.ErrNotFound {
-			c.JSON(http.StatusNotFound, errorResponse{Error: "not found"})
+		if errors.Is(err, service.ErrNotFound) {
+			JSONError(c, http.StatusNotFound, service.ErrNotFound)
 			return
 		}
-		c.JSON(http.StatusInternalServerError, errorResponse{Error: err.Error()})
+		JSONError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.Status(http.StatusNoContent)

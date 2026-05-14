@@ -49,22 +49,19 @@ func (s *ProductService) GetProductByID(ctx context.Context, id uint) (*model.Pr
 	return p, nil
 }
 
-func (s *ProductService) GetAllProducts(ctx context.Context, category string) ([]model.Product, error) {
-	products, err := s.repo.GetAllProducts(ctx)
+func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, limit, offset int) ([]model.Product, error) {
+	opts := repository.ListOptions{
+		Category: category,
+		LowStock: lowStock,
+		Limit:    limit,
+		Offset:   offset,
+	}
+	products, err := s.repo.GetAllProducts(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("list products: %w", err)
 	}
-	if category == "" {
-		return products, nil
-	}
 
-	var out []model.Product
-	for _, p := range products {
-		if p.Category == category {
-			out = append(out, p)
-		}
-	}
-	return out, nil
+	return products, nil
 }
 
 func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) error {
