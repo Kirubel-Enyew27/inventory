@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"inventory/internal/model"
 	"inventory/internal/repository"
+
+	"gorm.io/gorm"
 )
 
 type ProductService struct {
@@ -80,6 +82,9 @@ func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) er
 
 func (s *ProductService) DeleteProduct(ctx context.Context, id uint) error {
 	if err := s.repo.DeleteProduct(ctx, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("delete product: %w", err)
 	}
 	return nil

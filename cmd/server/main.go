@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"inventory/internal/config"
 	"inventory/internal/db"
+	"inventory/internal/handler"
+	"inventory/internal/repository"
+	"inventory/internal/service"
 	"log"
 	"net/http"
 
@@ -22,17 +25,20 @@ func main() {
 		log.Fatalf("failed to connect to db: %v", err)
 	}
 
-	_ = gormDB
+	repo := repository.NewProductRepository(gormDB)
+	svc := service.NewProductService(repo)
+	h := handler.NewProductHandler(svc)
 
-    r := gin.Default()
-    r.GET("/health", func (c *gin.Context) {
-        c.JSON(http.StatusOK, gin.H{"Status": "ok"})
-    })
+	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"Status": "ok"})
+	})
+	h.RegisterRoutes(r)
 
-    port := config.Get("PORT", "8080")
-    addr := fmt.Sprintf(":%s", port)
-    log.Printf("starting server on %s", addr)
-    if err := r.Run(addr); err != nil {
-        log.Fatalf("server exited: %v", err)
-    }
+	port := config.Get("PORT", "8080")
+	addr := fmt.Sprintf(":%s", port)
+	log.Printf("starting server on %s", addr)
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("server exited: %v", err)
+	}
 }
