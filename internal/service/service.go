@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"inventory/internal/model"
 	"inventory/internal/repository"
@@ -25,18 +26,34 @@ var (
 	ErrNotFound          = errors.New("product not found")
 	ErrInvalidPrice      = errors.New("price must be greater than 0")
 	ErrInvalidQuantity   = errors.New("quantity cannot be negative")
+	ErrInvalidSKU        = errors.New("sku is required")
+	ErrDuplicateSKU      = errors.New("sku already exists")
 	ErrInsufficientStock = errors.New("insufficient stock")
 )
 
 // CreateProduct validates and creates a product.
 func (s *ProductService) CreateProduct(ctx context.Context, p *model.Product) error {
+	p.SKU = strings.TrimSpace(p.SKU)
+	if p.SKU == "" {
+		return fmt.Errorf("create product: %w", ErrInvalidSKU)
+	}
 	if p.Price <= 0 {
 		return fmt.Errorf("create product: %w", ErrInvalidPrice)
 	}
 	if p.Quantity < 0 {
 		return fmt.Errorf("create product: %w", ErrInvalidQuantity)
 	}
+	existing, err := s.repo.GetProductBySKU(ctx, p.SKU)
+	if err != nil {
+		return fmt.Errorf("create product: %w", err)
+	}
+	if existing != nil {
+		return fmt.Errorf("create product: %w", ErrDuplicateSKU)
+	}
 	if err := s.repo.CreateProduct(ctx, p); err != nil {
+		if errors.Is(err, repository.ErrDuplicateSKU) {
+			return fmt.Errorf("create product: %w", ErrDuplicateSKU)
+		}
 		return fmt.Errorf("create product: %w", err)
 	}
 	return nil
@@ -55,11 +72,12 @@ func (s *ProductService) GetProductByID(ctx context.Context, id uint) (*model.Pr
 }
 
 // GetAllProducts returns products with optional category filter, low-stock flag, and pagination.
-func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, search string, limit, offset int) ([]model.Product, int64, error) {
+func (s *ProductService) GetAllProducts(ctx context.Context, category string, lowStock bool, search string, sku string, limit, offset int) ([]model.Product, int64, error) {
 	opts := repository.ListOptions{
 		Category: category,
 		LowStock: lowStock,
 		Search:   search,
+		SKU:      sku,
 		Limit:    limit,
 		Offset:   offset,
 	}
@@ -76,13 +94,27 @@ func (s *ProductService) GetAllProducts(ctx context.Context, category string, lo
 
 // UpdateProduct validates and updates a product.
 func (s *ProductService) UpdateProduct(ctx context.Context, p *model.Product) error {
+	p.SKU = strings.TrimSpace(p.SKU)
+	if p.SKU == "" {
+		return fmt.Errorf("update product: %w", ErrInvalidSKU)
+	}
 	if p.Price <= 0 {
 		return fmt.Errorf("update product: %w", ErrInvalidPrice)
 	}
 	if p.Quantity < 0 {
 		return fmt.Errorf("update product: %w", ErrInvalidQuantity)
 	}
+	existing, err := s.repo.GetProductBySKU(ctx, p.SKU)
+	if err != nil {
+		return fmt.Errorf("update product: %w", err)
+	}
+	if existing != nil && existing.ID != p.ID {
+		return fmt.Errorf("update product: %w", ErrDuplicateSKU)
+	}
 	if err := s.repo.UpdateProduct(ctx, p); err != nil {
+		if errors.Is(err, repository.ErrDuplicateSKU) {
+			return fmt.Errorf("update product: %w", ErrDuplicateSKU)
+		}
 		return fmt.Errorf("update product: %w", err)
 	}
 	return nil

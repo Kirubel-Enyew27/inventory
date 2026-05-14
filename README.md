@@ -21,9 +21,12 @@ Product listing supports:
 
 - `category`: exact category filter.
 - `low_stock`: boolean filter for products at or below the low-stock threshold.
-- `q`: search text matched against name and description.
+- `sku`: exact SKU filter.
+- `q`: search text matched against SKU, name, and description.
 - `limit`: page size from 1 to 100. Defaults to 20.
 - `offset`: zero-based result offset. Defaults to 0.
+
+Product `sku` values are required and must be unique.
 
 Example stock adjustment:
 

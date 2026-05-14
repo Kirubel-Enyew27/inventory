@@ -24,6 +24,9 @@ func NewProductRepository(db *gorm.DB) *ProductRepository {
 // CreateProduct inserts a new product record.
 func (r *ProductRepository) CreateProduct(ctx context.Context, p *model.Product) error {
 	if err := r.db.WithContext(ctx).Create(p).Error; err != nil {
+		if isUniqueViolation(err) {
+			return ErrDuplicateSKU
+		}
 		return fmt.Errorf("create product: %w", err)
 	}
 	return nil
@@ -47,6 +50,7 @@ type ListOptions struct {
 	Category string
 	LowStock bool
 	Search   string
+	SKU      string
 	Limit    int
 	Offset   int
 }
@@ -66,7 +70,10 @@ func (r *ProductRepository) GetAllProducts(ctx context.Context, opts ListOptions
 	}
 	if opts.Search != "" {
 		pattern := "%" + opts.Search + "%"
-		q = q.Where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
+		q = q.Where("sku ILIKE ? OR name ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
+	}
+	if opts.SKU != "" {
+		q = q.Where("sku = ?", opts.SKU)
 	}
 	if opts.Limit > 0 {
 		q = q.Limit(opts.Limit)
@@ -94,7 +101,10 @@ func (r *ProductRepository) CountProducts(ctx context.Context, opts ListOptions)
 	}
 	if opts.Search != "" {
 		pattern := "%" + opts.Search + "%"
-		q = q.Where("name ILIKE ? OR description ILIKE ?", pattern, pattern)
+		q = q.Where("sku ILIKE ? OR name ILIKE ? OR description ILIKE ?", pattern, pattern, pattern)
+	}
+	if opts.SKU != "" {
+		q = q.Where("sku = ?", opts.SKU)
 	}
 
 	if err := q.Count(&total).Error; err != nil {
@@ -103,9 +113,24 @@ func (r *ProductRepository) CountProducts(ctx context.Context, opts ListOptions)
 	return total, nil
 }
 
+// GetProductBySKU returns a product by SKU.
+func (r *ProductRepository) GetProductBySKU(ctx context.Context, sku string) (*model.Product, error) {
+	var p model.Product
+	if err := r.db.WithContext(ctx).Where("sku = ?", sku).First(&p).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get product by sku: %w", err)
+	}
+	return &p, nil
+}
+
 // UpdateProduct updates an existing product.
 func (r *ProductRepository) UpdateProduct(ctx context.Context, p *model.Product) error {
 	if err := r.db.WithContext(ctx).Save(p).Error; err != nil {
+		if isUniqueViolation(err) {
+			return ErrDuplicateSKU
+		}
 		return fmt.Errorf("update product: %w", err)
 	}
 	return nil
@@ -147,4 +172,14 @@ func (r *ProductRepository) AdjustStock(ctx context.Context, id uint, delta int)
 	return &product, nil
 }
 
-var ErrInsufficientStock = errors.New("insufficient stock")
+var (
+	ErrDuplicateSKU      = errors.New("sku already exists")
+	ErrInsufficientStock = errors.New("insufficient stock")
+)
+
+func isUniqueViolation(err error) bool {
+	var sqlState interface {
+		SQLState() string
+	}
+	return errors.As(err, &sqlState) && sqlState.SQLState() == "23505"
+}
