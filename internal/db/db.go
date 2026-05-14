@@ -1,6 +1,10 @@
 package db
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"inventory/internal/model"
 
 	"gorm.io/driver/postgres"
@@ -20,4 +24,19 @@ func Connect(dsn string) (*gorm.DB, error) {
 	}
 
 	return gormDB, nil
+}
+
+// Ping verifies the underlying database connection is reachable.
+func Ping(ctx context.Context, gormDB *gorm.DB) error {
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		return fmt.Errorf("get sql db: %w", err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
+		return fmt.Errorf("ping db: %w", err)
+	}
+	return nil
 }
